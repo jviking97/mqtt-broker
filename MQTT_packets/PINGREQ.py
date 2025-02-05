@@ -1,4 +1,4 @@
-from MQTT_control_packets import PINGRESP
+from MQTT_packets import PINGRESP
 import MQTT_database
 
 def handle(client_ID: str):

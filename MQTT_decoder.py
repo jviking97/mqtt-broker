@@ -1,8 +1,8 @@
 import MQTT_binary
-from MQTT_control_packets import CONNECT
-from MQTT_control_packets import SUBSCRIBE
-from MQTT_control_packets import UNSUBSCRIBE
-from MQTT_control_packets import PUBLISH
+from MQTT_packets import CONNECT
+from MQTT_packets import SUBSCRIBE
+from MQTT_packets import UNSUBSCRIBE
+from MQTT_packets import PUBLISH
 
 
 def decode(bytes):

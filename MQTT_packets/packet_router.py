@@ -1,9 +1,9 @@
-from MQTT_packet_handler import CONNECT
-from MQTT_packet_handler import SUBSCRIBE
-from MQTT_packet_handler import PINGREQ
-from MQTT_packet_handler import DISCONNECT
-from MQTT_packet_handler import UNSUBSCRIBE
-from MQTT_packet_handler import PUBLISH
+from MQTT_packets import CONNECT
+from MQTT_packets import SUBSCRIBE
+from MQTT_packets import PINGREQ
+from MQTT_packets import DISCONNECT
+from MQTT_packets import UNSUBSCRIBE
+from MQTT_packets import PUBLISH
 import sys
 
 def route_packet(incoming_packet: dict, client_ID: str):

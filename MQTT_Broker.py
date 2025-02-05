@@ -3,10 +3,10 @@ import sys
 from threading import Thread
 import MQTT_decoder
 import MQTT_database
-from MQTT_packet_handler import packet_router
+from MQTT_packets import packet_router
 import time
-from MQTT_control_packets import PUBLISH
-import MQTT_packet_handler
+from MQTT_packets import PUBLISH
+import MQTT_packets
 
 HOST = "127.0.0.1"
 PORT = 1883
