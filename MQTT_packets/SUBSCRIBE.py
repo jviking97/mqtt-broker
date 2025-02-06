@@ -1,101 +1,90 @@
+import logging
 from MQTT_packets import SUBACK
 import MQTT_database
-import sys
 
-def handle(incoming_packet: dict, client_ID: str):
+# Konfigurera logging
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(levelname)s - %(message)s")
 
-    # Get packet identifier
+
+def handle(incoming_packet: dict, client_id: str) -> bytes:
+    # Hämta packet identifier, topics och flaggor
     packet_identifier = incoming_packet.get('Packet identifier')
-
-    # Get topics
     topics = incoming_packet.get('Topics')
-
-    # Get flags
     flags = incoming_packet.get('Flags')
-    if flags != "0010": # Malformed packet
-        sys.exit()
 
-    # Check that session exists
-    if MQTT_database.session_exists(client_ID) == False:
-        return_codes = []
-        for _ in topics:
-            return_codes.append("10000000")    # Failure
+    # Kontrollera flaggorna; om de inte är korrekta kastas ett undantag
+    if flags != "0010":
+        logging.error("Felaktigt paket: Flagga är inte '0010'.")
+        raise ValueError("Felaktigt paket: Flagga är inte '0010'.")
+
+    # Om session inte finns, returnera failure-koder för samtliga topics
+    if not MQTT_database.session_exists(client_id):
+        return_codes = ["10000000" for _ in topics]  # Failure
         return SUBACK.encode(packet_identifier, return_codes)
 
-    # Evaluate topic requests
+    # Utvärdera topic-önskemål
     return_codes = []
     for topic in topics:
+        # Varje topic antas vara en dict med topic-namnet som nyckel
         topic_name = next(iter(topic))
         if not MQTT_database.topic_exists(topic_name):
-            return_codes.append("10000000")    # Failure
+            return_codes.append("10000000")  # Failure
         else:
-            # Add subscription to client
-            MQTT_database.session_add_topic(client_ID, topic_name)
-            print(f'Client ID ({client_ID}) subscribed to ({topic_name})')
-            return_codes.append("00000000")   # QoS 0
+            MQTT_database.session_add_topic(client_id, topic_name)
+            logging.info(f"Client ID ({client_id}) subscribed to ({topic_name}).")
+            return_codes.append("00000000")  # QoS 0
 
-    # Create packet
-    outgoing_packet = SUBACK.encode(packet_identifier, return_codes)
-    return outgoing_packet
+    # Skapa och returnera SUBACK-paketet
+    return SUBACK.encode(packet_identifier, return_codes)
 
-def decode(bytes):
 
-    # Buffer to hold decoded values from packet
+def decode(data: bytes) -> dict:
     decoded_packet = {}
-
-    # Control variable
     current_byte = 0
 
-    # Packet identifier
-    packet_identifier_bytes_1 = bytes[current_byte]
-    packet_identifier_bits_1 = format(packet_identifier_bytes_1, "08b")
-    current_byte += 1
-    packet_identifier_bytes_2 = bytes[current_byte]
-    packet_identifier_bits_2 = format(packet_identifier_bytes_2, "08b")
-    current_byte += 1
-    packet_identifier_bits = (
-        packet_identifier_bits_1 + packet_identifier_bits_2
-    )
+    # Kontrollera att vi har minst 2 bytes för packet identifiern
+    if len(data) < 2:
+        raise ValueError("Data för kort för att innehålla ett packet identifier.")
+
+    # Avkoda packet identifier (2 bytes)
+    packet_identifier_bits = f"{data[current_byte]:08b}{data[current_byte + 1]:08b}"
     packet_identifier_value = int(packet_identifier_bits, 2)
     decoded_packet['Packet identifier'] = packet_identifier_value
+    current_byte += 2
 
-    ### PAYLOAD
-
-    # Local storage for topics
     topics = []
 
-    # While we have at least 6 bytes ahead of us
-    while current_byte+6 <= len(bytes):
-
-        # Topic filter length
-        topic_filter_length_bytes_1 = bytes[current_byte]
-        topic_filter_length_bits_1 = format(topic_filter_length_bytes_1, "08b")
-        current_byte += 1
-        topic_filter_length_bytes_2 = bytes[current_byte]
-        topic_filter_length_bits_2 = format(topic_filter_length_bytes_2, "08b")
-        current_byte += 1
-        topic_filter_length_bits = (
-            topic_filter_length_bits_1 + topic_filter_length_bits_2
-        )
+    # Medan det finns tillräckligt med data kvar för att läsa ett topic (minst 6 bytes)
+    while current_byte + 6 <= len(data):
+        # Läs ut topic filter längd (2 bytes)
+        topic_filter_length_bits = f"{data[current_byte]:08b}{data[current_byte + 1]:08b}"
         topic_filter_length_value = int(topic_filter_length_bits, 2)
+        current_byte += 2
 
-        # Topic filter
-        topic_filter_bytes = bytes[current_byte:current_byte+topic_filter_length_value]
-        topic_filter = topic_filter_bytes.decode()
+        # Kontrollera att vi har tillräckligt med data för topic filter
+        if current_byte + topic_filter_length_value > len(data):
+            logging.error("Data saknas för att läsa topic filter.")
+            break
+
+        # Läs ut topic filter
+        topic_filter_bytes = data[current_byte:current_byte + topic_filter_length_value]
+        try:
+            topic_filter = topic_filter_bytes.decode()
+        except Exception as e:
+            logging.error(f"Misslyckades att avkoda topic filter: {e}")
+            topic_filter = ""
         current_byte += topic_filter_length_value
 
-        # Requested QoS
-        requested_qos_bytes = bytes[current_byte]
-        requested_qos_bits = format(requested_qos_bytes, "08b")
-        requested_qos_value = int(requested_qos_bits, 2)
+        # Läs ut Requested QoS (1 byte)
+        if current_byte >= len(data):
+            logging.error("Data saknas för att läsa Requested QoS.")
+            break
+        # Här kan vi direkt använda värdet eftersom det är en byte
+        requested_qos_value = data[current_byte]
         current_byte += 1
 
-        topic = {
-            topic_filter : requested_qos_value
-        }
+        topics.append({topic_filter: requested_qos_value})
 
-        topics.append(topic)
-        
     decoded_packet['Topics'] = topics
-
     return decoded_packet

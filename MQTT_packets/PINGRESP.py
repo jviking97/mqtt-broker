@@ -1,30 +1,36 @@
+import logging
 import MQTT_binary
 
-def encode(client_ID: str):
+# Konfigurera logging med tidsstämpel, loggnivå och meddelande
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(levelname)s - %(message)s")
 
-    # Packet type
-    packet_type = MQTT_binary.get_bits("PINGRESP")
+def encode(client_id: str) -> bytes:
+    try:
+        # Hämta den binära representationen av pakettypen
+        packet_type = MQTT_binary.get_bits("PINGRESP")
+    except Exception as e:
+        logging.error(f"Could not fetch bits for PINGRESP: {e}")
+        raise
 
-    # Flags
+    # Definiera fasta bitsträngar för flags och packet length
     flags = "0000"
-
-    # Packet length
     packet_length = "00000000"
 
+    # Eventuellt: logga det "avkodade" paketet som en struktur (vid debug)
     decoded_packet = {
         "Packet type": "PINGRESP",
         "Flags": flags,
         "Packet length": packet_length
     }
-    #print(decoded_packet)
+    logging.debug(f"Decoded packet: {decoded_packet}")
 
-    packet = (
-        packet_type
-        + flags
-        + packet_length
-    )
+    # Konstruera paketet genom att konkatenera de olika delarna
+    packet_binary = packet_type + flags + packet_length
 
-    print(f'Responded to ({client_ID}) ping request.')
+    # Logga att vi svarar på ping-requesten
+    logging.info(f"Responded to ({client_id}) ping request.")
 
-    encoded_packet = int(packet, 2).to_bytes((len(packet) + 7) // 8, byteorder="big")
+    # Konvertera den binära strängen till en bytes-array
+    encoded_packet = int(packet_binary, 2).to_bytes((len(packet_binary) + 7) // 8, byteorder="big")
     return encoded_packet

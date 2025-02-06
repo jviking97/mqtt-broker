@@ -1,6 +1,11 @@
+import logging
 from MQTT_packets import PUBLISH
 import MQTT_database
 import MQTT_binary
+
+# Konfigurera logging
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(levelname)s - %(message)s")
 
 def handle(incoming_packet: dict, client_ID: str):
 
@@ -9,7 +14,7 @@ def handle(incoming_packet: dict, client_ID: str):
 
     # Update topic
     if MQTT_database.topic_update_value(topic, payload):
-        print(f'Client ID ({client_ID}) updated topic ({topic}) updated value to: {payload}')
+        logging.info(f'Client ID ({client_ID}) updated topic ({topic}) updated value to: {payload}')
 
     # Create publish packet
     outgoing_packet = PUBLISH.encode(topic, payload)
